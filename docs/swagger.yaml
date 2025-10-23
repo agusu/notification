@@ -1,0 +1,398 @@
+basePath: /
+definitions:
+  channels.ValidEmailMeta:
+    properties:
+      subject:
+        example: Welcome to our platform
+        type: string
+      template:
+        example: titled
+        type: string
+      to:
+        example: user@example.com
+        type: string
+    type: object
+  channels.ValidPushMeta:
+    properties:
+      data:
+        additionalProperties:
+          type: string
+        type: object
+      options:
+        additionalProperties:
+          type: string
+        type: object
+      platform:
+        example: android
+        type: string
+      token:
+        example: device_token_xyz123
+        type: string
+    type: object
+  channels.ValidSMSMeta:
+    properties:
+      phone:
+        example: "+1234567890"
+        type: string
+      send_date:
+        example: "2024-10-21"
+        type: string
+    type: object
+  gorm.DeletedAt:
+    properties:
+      time:
+        type: string
+      valid:
+        description: Valid is true if Time is not NULL
+        type: boolean
+    type: object
+  models.ChannelSchemasResponse:
+    properties:
+      email:
+        $ref: '#/definitions/channels.ValidEmailMeta'
+      push:
+        $ref: '#/definitions/channels.ValidPushMeta'
+      sms:
+        $ref: '#/definitions/channels.ValidSMSMeta'
+    type: object
+  models.CreateNotificationRequest:
+    properties:
+      channel_name:
+        enum:
+        - email
+        - sms
+        - push
+        example: email
+        type: string
+      content:
+        example: Welcome to our platform!
+        type: string
+      meta:
+        additionalProperties:
+          type: string
+        type: object
+      title:
+        example: Welcome email
+        type: string
+    type: object
+  models.ErrorResponse:
+    properties:
+      error:
+        example: Invalid request
+        type: string
+    type: object
+  models.MessageResponse:
+    properties:
+      message:
+        example: Operation completed successfully
+        type: string
+    type: object
+  models.Notification:
+    properties:
+      channelName:
+        type: string
+      content:
+        type: string
+      createdAt:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      id:
+        type: integer
+      idempotencyKey:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+      userID:
+        type: integer
+    type: object
+  models.TokenResponse:
+    properties:
+      token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+    type: object
+  notification_services_user.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  notification_services_user.SignupRequest:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: |-
+    API for managing notifications.
+
+    **Channel Meta Requirements:**
+    - Email: channels.ValidEmailMeta
+    - SMS: channels.ValidSMSMeta
+    - Push: channels.ValidPushMeta
+  title: Notification API
+  version: "1.0"
+paths:
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate a user and return a JWT token
+      parameters:
+      - description: Credentials
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/notification_services_user.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.TokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Login
+      tags:
+      - auth
+  /notifications:
+    get:
+      description: List user notifications
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Notification'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List notifications
+      tags:
+      - notifications
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Create and enqueue a notification. Supports multiple channels: email, sms, and push.
+
+        **Email Channel** - See channels.ValidEmailMeta for required meta fields
+        **SMS Channel** - See channels.ValidSMSMeta for required meta fields
+        **Push Channel** - See channels.ValidPushMeta for required meta fields
+
+        **Example:** {"title":"Welcome","content":"Welcome message","channel_name":"email","meta":{"to":"user@example.com","subject":"Welcome!"}}
+      parameters:
+      - description: Notification data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateNotificationRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/models.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create notification
+      tags:
+      - notifications
+  /notifications/{id}:
+    delete:
+      description: Mark a notification as deleted
+      parameters:
+      - description: Notification ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete notification
+      tags:
+      - notifications
+    get:
+      description: Get a notification by ID
+      parameters:
+      - description: Notification ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Notification'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get notification
+      tags:
+      - notifications
+    patch:
+      consumes:
+      - application/json
+      description: Update allowed fields of a notification
+      parameters:
+      - description: Notification ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Partial update
+        in: body
+        name: patch
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update notification
+      tags:
+      - notifications
+  /notifications/channels/schemas:
+    get:
+      description: Get the required meta field schemas for each notification channel
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ChannelSchemasResponse'
+      summary: Get channel schemas
+      tags:
+      - notifications
+  /signup:
+    post:
+      consumes:
+      - application/json
+      description: Register a new user
+      parameters:
+      - description: Registration data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/notification_services_user.SignupRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Create user
+      tags:
+      - auth
+schemes:
+- http
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
