@@ -105,15 +105,46 @@ Sends templated HTML emails.
 
 **Required metadata:** `to` (email), `subject` (optional), `template` (optional: "titled" or "plain")
 
+**Production Integration Options:** AWS SES (Simple Email Service), SendGrid
+
 ### SMS
 Sends SMS messages (max 160 characters).
 
 **Required metadata:** `phone` (E.164 format), `carrier` (e.g., "verizon", "att")
 
+**Production Integration Options:** Twilio, AWS SNS (Simple Notification Service)
+
 ### Push
 Sends push notifications to mobile devices.
 
 **Required metadata:** `token` (device token), `platform` ("android" or "ios"), `data` (optional)
+
+**Production Integration Options:** Firebase Cloud Messaging (FCM), AWS SNS
+
+### Integration Pattern
+
+All channels follow the same pattern for easy provider swapping:
+
+```go
+// Example: Integrating AWS SES for Email
+import "github.com/aws/aws-sdk-go/service/ses"
+
+func (c *EmailChannel) sender(ctx context.Context, from, to, subject, body string) error {
+    svc := ses.New(session.New())
+    input := &ses.SendEmailInput{
+        Destination: &ses.Destination{ToAddresses: []*string{aws.String(to)}},
+        Message: &ses.Message{
+            Subject: &ses.Content{Data: aws.String(subject)},
+            Body: &ses.Body{Html: &ses.Content{Data: aws.String(body)}},
+        },
+        Source: aws.String(from),
+    }
+    _, err := svc.SendEmailWithContext(ctx, input)
+    return err
+}
+```
+
+**Current Implementation**: Console output (development). Replace with production provider in each channel's implementation (`Send()`).
 
 ## Scheduled Notifications
 
@@ -329,7 +360,33 @@ Guarantees eventual delivery of notifications. When a notification is created, b
 
 ## Database Migrations
 
-The project uses GORM's `AutoMigrate` feature. When you start the application, it automatically creates tables if they don't exist, adds new columns to existing tables and creates indexes defined in model tags
+### Current Approach (Development Only)
+
+This project uses GORM's `AutoMigrate` for rapid development, prioritizing architecture design over infrastructure setup. It automatically creates tables, adds columns, and creates indexes on application startup.
+
+**⚠️ Production Limitation**: This approach is not suitable for production because:
+- **Data loss risk**: Removing a field from a struct drops the column immediately
+- **No rollback**: Cannot revert failed migrations
+- **No audit trail**: No record of what changed or when
+- **Race conditions**: Multiple instances can conflict during startup
+
+### Production Approach
+
+In a real production environment, I would use **versioned migrations** with tools like:
+- **[golang-migrate](https://github.com/golang-migrate/migrate)** or **[goose](https://github.com/pressly/goose)**: Versioned SQL migrations with up/down scripts
+- **CI/CD Integration**: Migrations run before deployment, blocking on failures
+- **Review Process**: Schema changes reviewed in PRs, tested in staging
+
+**Example workflow:**
+```
+migrations/
+  001_create_notifications.up.sql
+  001_create_notifications.down.sql
+  002_add_scheduled_at.up.sql
+  002_add_scheduled_at.down.sql
+```
+
+This ensures safe schema evolution, rollback capability, and zero-downtime deployments.
 
 
 ## Documentation
