@@ -20,6 +20,7 @@ type Outbox struct {
 	Attempts       int
 	LastError      string
 	NextAttemptAt  time.Time
+	ScheduledAt    time.Time `gorm:"index:idx_status_scheduled,priority:2"`
 	MaxAttempts    int
 	CreatedAt      time.Time
 	UpdatedAt      time.Time

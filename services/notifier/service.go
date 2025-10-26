@@ -29,12 +29,14 @@ type NotificationRequest struct {
 	ChannelName string            `json:"channel_name"`
 	Meta        map[string]string `json:"meta"`
 	UserID      uint              `json:"user_id"`
+	ScheduledAt *time.Time        `json:"scheduled_at,omitempty"`
 }
 
 type UpdateNotificationRequest struct {
-	Title   string            `json:"title"`
-	Content string            `json:"content"`
-	Meta    map[string]string `json:"meta"`
+	Title       string            `json:"title"`
+	Content     string            `json:"content"`
+	Meta        map[string]string `json:"meta"`
+	ScheduledAt *time.Time        `json:"scheduled_at,omitempty"`
 }
 
 type notificationUpdates struct {
@@ -47,6 +49,7 @@ type outboxUpdates struct {
 	Attempts      int
 	LastError     string
 	NextAttemptAt time.Time
+	ScheduledAt   time.Time
 }
 
 type NotifierService struct {
@@ -124,6 +127,11 @@ func (s *NotifierService) CreateAndEnqueue(ctx context.Context, notificationRequ
 			return err
 		}
 
+		scheduledAt := time.Now()
+		if notificationRequest.ScheduledAt != nil {
+			scheduledAt = *notificationRequest.ScheduledAt
+		}
+
 		outbox := models.Outbox{
 			NotificationID: notification.ID,
 			ChannelName:    notificationRequest.ChannelName,
@@ -131,7 +139,8 @@ func (s *NotifierService) CreateAndEnqueue(ctx context.Context, notificationRequ
 			Status:         models.PENDING,
 			Attempts:       0,
 			LastError:      "",
-			NextAttemptAt:  time.Now(),
+			NextAttemptAt:  scheduledAt,
+			ScheduledAt:    scheduledAt,
 			MaxAttempts:    3,
 		}
 
@@ -242,19 +251,26 @@ func (s *NotifierService) UpdateNotification(ctx context.Context, id int, patch 
 			}
 		}
 
-		// If meta provided, refresh Outbox snapshot for PENDING jobs
-		if patch.Meta != nil {
+		// If meta or scheduledAt provided, refresh Outbox snapshot for PENDING jobs
+		if patch.Meta != nil || patch.ScheduledAt != nil {
 			msg := channel.Message{Title: newTitle, Content: newContent, Meta: patch.Meta}
 			payload, err := json.Marshal(msg)
 			if err != nil {
 				return err
 			}
+
 			updates := outboxUpdates{
 				PayloadJson:   string(payload),
 				Attempts:      0,
 				LastError:     "",
 				NextAttemptAt: time.Now(),
 			}
+
+			if patch.ScheduledAt != nil {
+				updates.ScheduledAt = *patch.ScheduledAt
+				updates.NextAttemptAt = *patch.ScheduledAt
+			}
+
 			// Update only PENDING outbox rows atomically
 			if err := tx.Model(&models.Outbox{}).
 				Where("notification_id = ? AND status = ?", notification.ID, models.PENDING).

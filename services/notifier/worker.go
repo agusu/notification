@@ -50,8 +50,8 @@ func (w *Worker) claimBatch(ctx context.Context, limit int) ([]models.Outbox, er
 	var ids []int
 	if err := tx.
 		Model(&models.Outbox{}).
-		Where("status = ? AND next_attempt_at <= ?", models.PENDING, time.Now()).
-		Order("next_attempt_at ASC").
+		Where("status = ? AND next_attempt_at <= ? AND scheduled_at <= ?", models.PENDING, time.Now(), time.Now()).
+		Order("scheduled_at ASC, next_attempt_at ASC").
 		Limit(limit).
 		Pluck("id", &ids).Error; err != nil {
 		tx.Rollback()

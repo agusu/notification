@@ -35,7 +35,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/notification_services_user.LoginRequest"
+                            "$ref": "#/definitions/user.LoginRequest"
                         }
                     }
                 ],
@@ -88,7 +88,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/models.Notification"
+                                "$ref": "#/definitions/models.NotificationResponse"
                             }
                         }
                     },
@@ -112,7 +112,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Create and enqueue a notification. Supports multiple channels: email, sms, and push.\n\n**Email Channel** - See channels.ValidEmailMeta for required meta fields\n**SMS Channel** - See channels.ValidSMSMeta for required meta fields\n**Push Channel** - See channels.ValidPushMeta for required meta fields\n\n**Example:** {\"title\":\"Welcome\",\"content\":\"Welcome message\",\"channel_name\":\"email\",\"meta\":{\"to\":\"user@example.com\",\"subject\":\"Welcome!\"}}",
+                "description": "Create and enqueue a notification. Supports multiple channels: email, sms, and push.\n\n**Email Channel** - See channels.ValidEmailMeta for required meta fields\n**SMS Channel** - See channels.ValidSMSMeta for required meta fields\n**Push Channel** - See channels.ValidPushMeta for required meta fields\n\n**scheduled_at**: Optional. Use RFC3339 format (e.g., \"2025-10-27T10:00:00Z\"). If not provided, the notification will be sent immediately.\n\n**Example:** {\"title\":\"Welcome\",\"content\":\"Welcome message\",\"channel_name\":\"email\",\"meta\":{\"to\":\"user@example.com\",\"subject\":\"Welcome!\"},\"scheduled_at\":\"2025-10-27T10:00:00Z\"}",
                 "consumes": [
                     "application/json"
                 ],
@@ -210,7 +210,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.Notification"
+                            "$ref": "#/definitions/models.NotificationResponse"
                         }
                     },
                     "401": {
@@ -277,7 +277,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Update allowed fields of a notification",
+                "description": "Update allowed fields of a notification (title, content, meta, scheduled_at). Only PENDING notifications can be reprogrammed.\n\n**scheduled_at**: Optional. Use RFC3339 format (e.g., \"2025-10-27T15:00:00Z\") to reschedule PENDING notifications.",
                 "consumes": [
                     "application/json"
                 ],
@@ -302,8 +302,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/notifier.UpdateNotificationRequest"
                         }
                     }
                 ],
@@ -358,7 +357,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/notification_services_user.SignupRequest"
+                            "$ref": "#/definitions/user.SignupRequest"
                         }
                     }
                 ],
@@ -441,18 +440,6 @@ const docTemplate = `{
                 }
             }
         },
-        "gorm.DeletedAt": {
-            "type": "object",
-            "properties": {
-                "time": {
-                    "type": "string"
-                },
-                "valid": {
-                    "description": "Valid is true if Time is not NULL",
-                    "type": "boolean"
-                }
-            }
-        },
         "models.ChannelSchemasResponse": {
             "type": "object",
             "properties": {
@@ -489,6 +476,10 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "scheduled_at": {
+                    "type": "string",
+                    "example": "2025-10-27T10:00:00Z"
+                },
                 "title": {
                     "type": "string",
                     "example": "Welcome email"
@@ -513,35 +504,40 @@ const docTemplate = `{
                 }
             }
         },
-        "models.Notification": {
+        "models.NotificationResponse": {
             "type": "object",
             "properties": {
-                "channelName": {
-                    "type": "string"
+                "channel_name": {
+                    "type": "string",
+                    "example": "email"
                 },
                 "content": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Welcome to our platform!"
                 },
-                "createdAt": {
-                    "type": "string"
-                },
-                "deletedAt": {
-                    "$ref": "#/definitions/gorm.DeletedAt"
+                "created_at": {
+                    "type": "string",
+                    "example": "2025-10-26T12:00:00Z"
                 },
                 "id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 1
                 },
-                "idempotencyKey": {
-                    "type": "string"
+                "idempotency_key": {
+                    "type": "string",
+                    "example": "a1b2c3d4e5f6"
                 },
                 "title": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Welcome email"
                 },
-                "updatedAt": {
-                    "type": "string"
+                "updated_at": {
+                    "type": "string",
+                    "example": "2025-10-26T12:00:00Z"
                 },
-                "userID": {
-                    "type": "integer"
+                "user_id": {
+                    "type": "integer",
+                    "example": 123
                 }
             }
         },
@@ -554,7 +550,27 @@ const docTemplate = `{
                 }
             }
         },
-        "notification_services_user.LoginRequest": {
+        "notifier.UpdateNotificationRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "meta": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "scheduled_at": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.LoginRequest": {
             "type": "object",
             "properties": {
                 "email": {
@@ -565,7 +581,7 @@ const docTemplate = `{
                 }
             }
         },
-        "notification_services_user.SignupRequest": {
+        "user.SignupRequest": {
             "type": "object",
             "properties": {
                 "email": {
