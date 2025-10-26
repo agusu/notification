@@ -37,23 +37,54 @@ This approach ensures consistency between database and messaging, automatic retr
 
 ### Prerequisites
 
-- Go 1.24+
-- MySQL 8.0+
-- Docker (optional)
+- Docker & Docker Compose
+- Go 1.24+ (for local development)
+- MySQL 8.0+ (only if not using Docker)
 
-### Setup
+### Setup with Docker (Recommended)
 
 ```bash
 # Clone and configure
 git clone <repository-url>
 cd notification
-cp .env.example .env
+
+# Create environment file (optional, uses defaults)
+cp env.example .env
+# Edit .env if needed
+
+# Build and start all services
+docker-compose up --build
+
+# Or run in background
+docker-compose up -d --build
+```
+
+To view logs: `docker-compose logs -f api`
+
+To stop the services:
+```bash
+docker-compose down
+
+# Stop and remove volumes (clears database)
+docker-compose down -v
+```
+
+API available at `http://localhost:8080`  
+Swagger UI at `http://localhost:8080/swagger/index.html`
+
+### Setup without Docker (Local Development)
+
+```bash
+# Clone and configure
+git clone <repository-url>
+cd notification
+cp env.example .env
 
 # Edit .env with your configuration
-# MYSQL_HOST, MYSQL_PORT, MYSQL_DB, MYSQL_USER, MYSQL_PASSWORD, JWT_SECRET
+# MYSQL_HOST=localhost, MYSQL_PORT=3306, etc.
 
-# Start MySQL (Docker Compose)
-docker-compose up -d
+# Start MySQL (Docker Compose or locally)
+docker-compose up -d mysql
 
 # Or create database manually
 mysql -u root -p
@@ -210,19 +241,50 @@ See `/docs/notification-examples.md` for more examples (SMS, Push).
 
 ## Development
 
-### Regenerate Swagger
+### Run with Docker
 ```bash
-swag init -g cmd/api/main.go -d . -o ./docs --parseDependency --parseInternal
+# Start all services
+docker-compose up --build
+
+# Rebuild only API service
+docker-compose up --build api
+
+# Run tests inside container
+docker-compose run --rm api go test ./...
 ```
 
-### Run Tests
+### Local Development
 ```bash
+# Regenerate Swagger
+swag init -g cmd/api/main.go
+# Or with Docker
+docker-compose run --rm api swag init -g cmd/api/main.go
+
+# Run tests
 go test ./...
+
+# Build binary
+go build -o bin/api ./cmd/api
 ```
 
-### Build
+### Docker Commands
 ```bash
-go build -o bin/api ./cmd/api
+# View logs
+docker-compose logs -f api
+docker-compose logs -f mysql
+
+# Access MySQL shell
+docker-compose exec mysql mysql -uapp -papp notification
+
+# Access API container shell
+docker-compose exec api sh
+
+# Restart services
+docker-compose restart api
+
+# Remove everything and start fresh
+docker-compose down -v
+docker-compose up --build
 ```
 
 ## Design Decisions
