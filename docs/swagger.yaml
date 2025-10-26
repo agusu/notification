@@ -31,11 +31,11 @@ definitions:
     type: object
   channels.ValidSMSMeta:
     properties:
+      carrier:
+        example: verizon
+        type: string
       phone:
         example: "+1234567890"
-        type: string
-      send_date:
-        example: "2024-10-21"
         type: string
     type: object
   models.ChannelSchemasResponse:

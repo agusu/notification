@@ -77,7 +77,7 @@ Sends templated HTML emails.
 ### SMS
 Sends SMS messages (max 160 characters).
 
-**Required metadata:** `phone` (E.164 format), `send_date` (YYYY-MM-DD)
+**Required metadata:** `phone` (E.164 format), `carrier` (e.g., "verizon", "att")
 
 ### Push
 Sends push notifications to mobile devices.
@@ -201,7 +201,7 @@ curl -X POST http://localhost:8080/notifications \
     "title": "Reminder",
     "content": "Your appointment is tomorrow",
     "channel_name": "sms",
-    "meta": {"phone": "+1234567890"},
+    "meta": {"phone": "+1234567890", "carrier": "verizon"},
     "scheduled_at": "2025-10-27T10:00:00Z"
   }'
 ```

@@ -430,13 +430,13 @@ const docTemplate = `{
         "channels.ValidSMSMeta": {
             "type": "object",
             "properties": {
+                "carrier": {
+                    "type": "string",
+                    "example": "verizon"
+                },
                 "phone": {
                     "type": "string",
                     "example": "+1234567890"
-                },
-                "send_date": {
-                    "type": "string",
-                    "example": "2024-10-21"
                 }
             }
         },

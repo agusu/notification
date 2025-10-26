@@ -16,7 +16,7 @@ type Outbox struct {
 	NotificationID uint
 	ChannelName    string
 	PayloadJson    string
-	Status         Status
+	Status         Status `gorm:"index:idx_status_scheduled,priority:1"`
 	Attempts       int
 	LastError      string
 	NextAttemptAt  time.Time

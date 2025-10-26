@@ -260,8 +260,8 @@ func (nc *NotificationController) GetChannelSchemas(c *gin.Context) {
 			Template: "titled",
 		},
 		SMS: channels.ValidSMSMeta{
-			Phone:    "+1234567890",
-			SendDate: "2024-10-21",
+			Phone:   "+1234567890",
+			Carrier: "verizon",
 		},
 		Push: channels.ValidPushMeta{
 			Token:    "device_token_xyz123",
