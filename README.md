@@ -84,6 +84,49 @@ Sends push notifications to mobile devices.
 
 **Required metadata:** `token` (device token), `platform` ("android" or "ios"), `data` (optional)
 
+## Scheduled Notifications
+
+Notifications can be scheduled for future delivery using the `scheduled_at` field (RFC3339 format).
+
+### Send Immediately (default)
+```bash
+curl -X POST http://localhost:8080/notifications \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Welcome",
+    "content": "Welcome to our platform!",
+    "channel_name": "email",
+    "meta": {"to": "user@example.com"}
+  }'
+```
+
+### Schedule for Later
+```bash
+curl -X POST http://localhost:8080/notifications \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Reminder",
+    "content": "Don't forget your meeting",
+    "channel_name": "push",
+    "meta": {"token": "device_token_xyz"},
+    "scheduled_at": "2025-10-27T10:00:00Z"
+  }'
+```
+
+### Reschedule PENDING Notification
+```bash
+curl -X PATCH http://localhost:8080/notifications/123 \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "scheduled_at": "2025-10-27T15:00:00Z"
+  }'
+```
+
+**Note:** Only notifications with `PENDING` status can be rescheduled. The worker respects `scheduled_at` and will not process notifications before their scheduled time.
+
 ## Authentication
 
 The API uses JWT (JSON Web Tokens) for authentication.
@@ -134,7 +177,7 @@ curl http://localhost:8080/notifications \
 
 ## Usage Examples
 
-### Create Email Notification
+### Create Email Notification (Immediate)
 
 ```bash
 curl -X POST http://localhost:8080/notifications \
@@ -145,6 +188,21 @@ curl -X POST http://localhost:8080/notifications \
     "content": "Welcome to our platform!",
     "channel_name": "email",
     "meta": {"to": "user@example.com", "subject": "Welcome!"}
+  }'
+```
+
+### Create Scheduled Notification
+
+```bash
+curl -X POST http://localhost:8080/notifications \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Reminder",
+    "content": "Your appointment is tomorrow",
+    "channel_name": "sms",
+    "meta": {"phone": "+1234567890"},
+    "scheduled_at": "2025-10-27T10:00:00Z"
   }'
 ```
 
@@ -191,7 +249,21 @@ go build -o bin/api ./cmd/api
 
 **Notification**: `id`, `user_id`, `title`, `content`, `channel_name`, `idempotency_key` (unique), `created_at`, `deleted_at` (soft delete)
 
-**Outbox**: `id`, `notification_id`, `channel_name`, `payload_json`, `status` (PENDING/PROCESSING/SENT/FAILED), `attempts`, `max_attempts`, `last_error`, `next_attempt_at`
+**Outbox**: `id`, `notification_id`, `channel_name`, `payload_json`, `status` (PENDING/PROCESSING/SENT/FAILED), `attempts`, `max_attempts`, `last_error`, `next_attempt_at`, `scheduled_at`, `created_at`, `updated_at`
+
+## Database Migrations
+
+The project uses GORM's `AutoMigrate` feature. When you start the application, it automatically:
+- Creates tables if they don't exist
+- Adds new columns to existing tables (e.g., `scheduled_at` in `outbox`)
+- Creates indexes defined in model tags
+
+**For existing data:** If you have existing outbox records, run this SQL after the first startup to backfill `scheduled_at`:
+```sql
+UPDATE outbox 
+SET scheduled_at = created_at 
+WHERE scheduled_at IS NULL OR scheduled_at = '0000-00-00 00:00:00';
+```
 
 ## Documentation
 
