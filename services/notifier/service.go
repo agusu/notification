@@ -15,10 +15,12 @@ import (
 )
 
 var (
-	ErrInvalidChannel       = errors.New("invalid channel name")
-	ErrInvalidMetadata      = errors.New("invalid metadata for channel")
-	ErrNotificationExists   = errors.New("notification already exists")
-	ErrNotificationNotFound = errors.New("notification not found")
+	ErrInvalidChannel             = errors.New("invalid channel name")
+	ErrInvalidMetadata            = errors.New("invalid metadata for channel")
+	ErrNotificationExists         = errors.New("notification already exists")
+	ErrNotificationNotFound       = errors.New("notification not found")
+	ErrFailedToUpdateNotification = errors.New("failed to update notification")
+	ErrFailedToUpdateOutbox       = errors.New("failed to update outbox")
 )
 
 type NotificationRequest struct {
@@ -27,6 +29,24 @@ type NotificationRequest struct {
 	ChannelName string            `json:"channel_name"`
 	Meta        map[string]string `json:"meta"`
 	UserID      uint              `json:"user_id"`
+}
+
+type UpdateNotificationRequest struct {
+	Title   string            `json:"title"`
+	Content string            `json:"content"`
+	Meta    map[string]string `json:"meta"`
+}
+
+type notificationUpdates struct {
+	Title   string
+	Content string
+}
+
+type outboxUpdates struct {
+	PayloadJson   string
+	Attempts      int
+	LastError     string
+	NextAttemptAt time.Time
 }
 
 type NotifierService struct {
@@ -71,21 +91,21 @@ func (s *NotifierService) CreateAndEnqueue(ctx context.Context, notificationRequ
 	}
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Validar canal antes de crear la notificación
+		// Validate channel before creating the notification
 		channel, ok := s.channelList[notificationRequest.ChannelName]
 		if !ok {
 			return fmt.Errorf("%w: %s", ErrInvalidChannel, notificationRequest.ChannelName)
 		}
 
-		// Validar metadata del canal
+		// Validate channel metadata
 		if err := channel.Validate(notificationRequest.Meta); err != nil {
 			return fmt.Errorf("%w: %v", ErrInvalidMetadata, err)
 		}
 
-		// Crear notificación
+		// Create notification
 		err := tx.Create(&notification).Error
 		if err != nil {
-			// Si es por clave duplicada (idempotency), es un error de negocio
+			// If it's because of duplicate key (idempotency), it's a business error
 			return err
 		}
 
@@ -188,26 +208,63 @@ func (s *NotifierService) ListNotifications(ctx context.Context, userID int, lim
 	return list, nil
 }
 
-func (s *NotifierService) UpdateNotification(ctx context.Context, id int, patch map[string]any) error {
-	allowed := map[string]bool{"title": true, "content": true}
-	filtered := map[string]any{}
-	for k, v := range patch {
-		if allowed[k] {
-			filtered[k] = v
-		}
-	}
-	if len(filtered) == 0 {
-		return nil
+// @Summary Update notification
+// @Description Update a notification, allowed fields are: title, content, meta
+// @Tags notifications
+func (s *NotifierService) UpdateNotification(ctx context.Context, id int, patch UpdateNotificationRequest) error {
+	notification, err := s.GetNotification(ctx, id)
+	if err != nil {
+		return err
 	}
 
-	result := s.db.WithContext(ctx).Model(&models.Notification{}).Where("id = ?", id).Updates(filtered)
-	if result.Error != nil {
-		return result.Error
+	newTitle := notification.Title
+	newContent := notification.Content
+	if patch.Title != "" {
+		newTitle = patch.Title
 	}
-	if result.RowsAffected == 0 {
-		return ErrNotificationNotFound
+	if patch.Content != "" {
+		newContent = patch.Content
 	}
-	return nil
+
+	// Validate meta (if provided) against channel
+	if patch.Meta != nil {
+		if !s.hasValidMeta(notification.ChannelName, patch.Meta) {
+			return fmt.Errorf("%w: %s", ErrInvalidMetadata, notification.ChannelName)
+		}
+	}
+
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		hasNotificationUpdates := newTitle != notification.Title || newContent != notification.Content
+		if hasNotificationUpdates {
+			updates := notificationUpdates{Title: newTitle, Content: newContent}
+			if err := tx.Model(&models.Notification{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+				return ErrFailedToUpdateNotification
+			}
+		}
+
+		// If meta provided, refresh Outbox snapshot for PENDING jobs
+		if patch.Meta != nil {
+			msg := channel.Message{Title: newTitle, Content: newContent, Meta: patch.Meta}
+			payload, err := json.Marshal(msg)
+			if err != nil {
+				return err
+			}
+			updates := outboxUpdates{
+				PayloadJson:   string(payload),
+				Attempts:      0,
+				LastError:     "",
+				NextAttemptAt: time.Now(),
+			}
+			// Update only PENDING outbox rows atomically
+			if err := tx.Model(&models.Outbox{}).
+				Where("notification_id = ? AND status = ?", notification.ID, models.PENDING).
+				Updates(updates).Error; err != nil {
+				return ErrFailedToUpdateOutbox
+			}
+		}
+
+		return nil
+	})
 }
 
 func (s *NotifierService) DeleteNotification(ctx context.Context, id int) error {
@@ -222,4 +279,16 @@ func (s *NotifierService) DeleteNotification(ctx context.Context, id int) error 
 		return ErrNotificationNotFound
 	}
 	return nil
+}
+
+func (s *NotifierService) getChannel(channelName string) channel.Channel {
+	channel, ok := s.channelList[channelName]
+	if !ok {
+		return nil
+	}
+	return channel
+}
+
+func (s *NotifierService) hasValidMeta(channelName string, meta map[string]string) bool {
+	return s.getChannel(channelName).Validate(meta) == nil
 }
