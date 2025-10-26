@@ -253,17 +253,8 @@ go build -o bin/api ./cmd/api
 
 ## Database Migrations
 
-The project uses GORM's `AutoMigrate` feature. When you start the application, it automatically:
-- Creates tables if they don't exist
-- Adds new columns to existing tables (e.g., `scheduled_at` in `outbox`)
-- Creates indexes defined in model tags
+The project uses GORM's `AutoMigrate` feature. When you start the application, it automatically creates tables if they don't exist, adds new columns to existing tables and creates indexes defined in model tags
 
-**For existing data:** If you have existing outbox records, run this SQL after the first startup to backfill `scheduled_at`:
-```sql
-UPDATE outbox 
-SET scheduled_at = created_at 
-WHERE scheduled_at IS NULL OR scheduled_at = '0000-00-00 00:00:00';
-```
 
 ## Documentation
 
