@@ -289,19 +289,33 @@ docker-compose up --build
 
 ## Design Decisions
 
-**Transactional Outbox Pattern**: Guarantees eventual delivery, prevents message loss, enables automatic retries.
+### Design Patterns
 
-**Channel Separation**: Each channel implements the `Channel` interface. Easy to add new channels without modifying the core.
+**Strategy Pattern (Channels)**  
+Each notification channel (Email, SMS, Push) implements the `Channel` interface with `Send()`, `Validate()`, and `Name()` methods. This allows adding new channels without modifying the core notification logic. The `NotifierService` depends on the interface, not concrete implementations.
 
-**Custom Errors**: Typed errors (`ErrInvalidCredentials`, `ErrNotificationNotFound`) with semantically correct HTTP codes.
+**Dependency Injection (Services)**  
+Services receive their dependencies through constructors (`NewNotifierService`, `NewUserController`). Database connections, channel lists, and other services are injected, making the code testable and loosely coupled. No global state or singletons.
 
-**JWT Authentication**: 30-day token expiration, reusable middleware, clean token extraction with `strings.CutPrefix`.
+**Repository Pattern (Database Abstraction)**  
+GORM acts as the repository layer, abstracting database operations. Services interact with models through the ORM, not raw SQL. This allows switching databases (SQLite for tests, MySQL for production) without changing business logic.
 
-**Metadata Validation**: Each channel validates its required fields with clear error messages.
+**Transactional Outbox Pattern (Reliable Messaging)**  
+Guarantees eventual delivery of notifications. When a notification is created, both the `Notification` and `Outbox` records are inserted in the same transaction. A separate worker processes the outbox asynchronously, ensuring no message loss even if the sending fails. Includes automatic retries with exponential backoff.
 
-**Async Worker**: Processes outbox every 30 seconds (configurable), handles retries and status updates.
+### Additional Design Decisions
 
-**Idempotency**: SHA-256 hash of (user_id + channel + title + content + meta) prevents duplicates.
+**Idempotency**: SHA-256 hash of (user_id + channel + title + content + meta) stored in `idempotency_key` prevents duplicate notifications from concurrent requests.
+
+**Custom Errors**: Typed errors (`ErrInvalidChannel`, `ErrNotificationNotFound`, `ErrInvalidMetadata`) enable semantically correct HTTP status codes and clear error handling.
+
+**JWT Authentication**: 30-day token expiration with reusable middleware. Token verification is centralized and injected via `AuthMiddleware`.
+
+**Metadata Validation**: Each channel validates its required fields (`Validate` method) with clear, channel-specific error messages before creating the notification.
+
+**Async Worker**: Processes outbox every 30 seconds (configurable). Uses batch claiming with transactional status updates to prevent race conditions between multiple workers.
+
+**Scheduled Notifications**: Composite index on `(status, scheduled_at)` enables efficient querying of pending jobs. Worker respects `scheduled_at` and processes notifications only when their time arrives.
 
 
 
