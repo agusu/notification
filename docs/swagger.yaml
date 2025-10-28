@@ -38,6 +38,32 @@ definitions:
         example: "+1234567890"
         type: string
     type: object
+  controllers.CreateNotificationDTO:
+    properties:
+      channel_name:
+        type: string
+      content:
+        type: string
+      meta:
+        additionalProperties: {}
+        type: object
+      scheduled_at:
+        type: string
+      title:
+        type: string
+    type: object
+  controllers.UpdateNotificationDTO:
+    properties:
+      content:
+        type: string
+      meta:
+        additionalProperties: {}
+        type: object
+      scheduled_at:
+        type: string
+      title:
+        type: string
+    type: object
   models.ChannelSchemasResponse:
     properties:
       email:
@@ -46,29 +72,6 @@ definitions:
         $ref: '#/definitions/channels.ValidPushMeta'
       sms:
         $ref: '#/definitions/channels.ValidSMSMeta'
-    type: object
-  models.CreateNotificationRequest:
-    properties:
-      channel_name:
-        enum:
-        - email
-        - sms
-        - push
-        example: email
-        type: string
-      content:
-        example: Welcome to our platform!
-        type: string
-      meta:
-        additionalProperties:
-          type: string
-        type: object
-      scheduled_at:
-        example: "2025-10-27T10:00:00Z"
-        type: string
-      title:
-        example: Welcome email
-        type: string
     type: object
   models.ErrorResponse:
     properties:
@@ -113,19 +116,6 @@ definitions:
     properties:
       token:
         example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-        type: string
-    type: object
-  notifier.UpdateNotificationRequest:
-    properties:
-      content:
-        type: string
-      meta:
-        additionalProperties:
-          type: string
-        type: object
-      scheduled_at:
-        type: string
-      title:
         type: string
     type: object
   user.LoginRequest:
@@ -235,7 +225,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/models.CreateNotificationRequest'
+          $ref: '#/definitions/controllers.CreateNotificationDTO'
       produces:
       - application/json
       responses:
@@ -332,10 +322,10 @@ paths:
         type: integer
       - description: Partial update
         in: body
-        name: patch
+        name: data
         required: true
         schema:
-          $ref: '#/definitions/notifier.UpdateNotificationRequest'
+          $ref: '#/definitions/controllers.UpdateNotificationDTO'
       produces:
       - application/json
       responses:

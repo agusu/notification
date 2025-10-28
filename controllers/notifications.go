@@ -21,7 +21,7 @@ func NewNotificationController(svc *notifier.NotifierService) *NotificationContr
 	return &NotificationController{svc: svc}
 }
 
-type createNotificationDTO struct {
+type CreateNotificationDTO struct {
 	Title       string         `json:"title"`
 	Content     string         `json:"content"`
 	ChannelName string         `json:"channel_name"`
@@ -29,7 +29,14 @@ type createNotificationDTO struct {
 	ScheduledAt *string        `json:"scheduled_at,omitempty"`
 }
 
-func (dto *createNotificationDTO) normalizeMeta() map[string]string {
+type UpdateNotificationDTO struct {
+	Title       string         `json:"title"`
+	Content     string         `json:"content"`
+	Meta        map[string]any `json:"meta"`
+	ScheduledAt *string        `json:"scheduled_at,omitempty"`
+}
+
+func (dto *CreateNotificationDTO) normalizeMeta() map[string]string {
 	normalizedMeta := make(map[string]string, len(dto.Meta))
 	for k, v := range dto.Meta {
 		switch val := v.(type) {
@@ -60,7 +67,7 @@ func parseTime(s string) (time.Time, error) {
 // @Tags notifications
 // @Accept json
 // @Produce json
-// @Param data body models.CreateNotificationRequest true "Notification data"
+// @Param data body CreateNotificationDTO true "Notification data"
 // @Success 202 {object} models.MessageResponse
 // @Failure 400 {object} models.ErrorResponse
 // @Failure 401 {object} models.ErrorResponse
@@ -68,7 +75,7 @@ func parseTime(s string) (time.Time, error) {
 // @Security BearerAuth
 // @Router /notifications [post]
 func (nc *NotificationController) CreateNotification(c *gin.Context) {
-	var dto createNotificationDTO
+	var dto CreateNotificationDTO
 	if err := c.ShouldBindJSON(&dto); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -164,7 +171,7 @@ func (nc *NotificationController) GetNotification(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "Notification ID"
-// @Param patch body notifier.UpdateNotificationRequest true "Partial update"
+// @Param data body UpdateNotificationDTO true "Partial update"
 // @Success 204 "No Content"
 // @Failure 400 {object} models.ErrorResponse
 // @Failure 401 {object} models.ErrorResponse
@@ -174,45 +181,40 @@ func (nc *NotificationController) GetNotification(c *gin.Context) {
 // @Router /notifications/{id} [patch]
 func (nc *NotificationController) UpdateNotification(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	var patchDTO struct {
-		Title       string         `json:"title"`
-		Content     string         `json:"content"`
-		Meta        map[string]any `json:"meta"`
-		ScheduledAt *string        `json:"scheduled_at,omitempty"`
-	}
-	if err := c.ShouldBindJSON(&patchDTO); err != nil {
+	var dto UpdateNotificationDTO
+	if err := c.ShouldBindJSON(&dto); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	patch := notifier.UpdateNotificationRequest{
-		Title:   patchDTO.Title,
-		Content: patchDTO.Content,
+	req := notifier.UpdateNotificationRequest{
+		Title:   dto.Title,
+		Content: dto.Content,
 	}
 
-	if patchDTO.Meta != nil {
-		patch.Meta = make(map[string]string, len(patchDTO.Meta))
-		for k, v := range patchDTO.Meta {
+	if dto.Meta != nil {
+		req.Meta = make(map[string]string, len(dto.Meta))
+		for k, v := range dto.Meta {
 			switch val := v.(type) {
 			case string:
-				patch.Meta[k] = val
+				req.Meta[k] = val
 			default:
 				b, _ := json.Marshal(val)
-				patch.Meta[k] = string(b)
+				req.Meta[k] = string(b)
 			}
 		}
 	}
 
-	if patchDTO.ScheduledAt != nil {
-		t, err := parseTime(*patchDTO.ScheduledAt)
+	if dto.ScheduledAt != nil {
+		t, err := parseTime(*dto.ScheduledAt)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scheduled_at format. Use RFC3339 (e.g., 2025-10-27T15:00:00Z)"})
 			return
 		}
-		patch.ScheduledAt = &t
+		req.ScheduledAt = &t
 	}
 
-	if err := nc.svc.UpdateNotification(c.Request.Context(), id, patch); err != nil {
+	if err := nc.svc.UpdateNotification(c.Request.Context(), id, req); err != nil {
 		if errors.Is(err, notifier.ErrNotificationNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Notification not found"})
 			return

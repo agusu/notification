@@ -130,7 +130,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.CreateNotificationRequest"
+                            "$ref": "#/definitions/controllers.CreateNotificationDTO"
                         }
                     }
                 ],
@@ -298,11 +298,11 @@ const docTemplate = `{
                     },
                     {
                         "description": "Partial update",
-                        "name": "patch",
+                        "name": "data",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/notifier.UpdateNotificationRequest"
+                            "$ref": "#/definitions/controllers.UpdateNotificationDTO"
                         }
                     }
                 ],
@@ -440,6 +440,45 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.CreateNotificationDTO": {
+            "type": "object",
+            "properties": {
+                "channel_name": {
+                    "type": "string"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "meta": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "scheduled_at": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.UpdateNotificationDTO": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "meta": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "scheduled_at": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "models.ChannelSchemasResponse": {
             "type": "object",
             "properties": {
@@ -451,38 +490,6 @@ const docTemplate = `{
                 },
                 "sms": {
                     "$ref": "#/definitions/channels.ValidSMSMeta"
-                }
-            }
-        },
-        "models.CreateNotificationRequest": {
-            "type": "object",
-            "properties": {
-                "channel_name": {
-                    "type": "string",
-                    "enum": [
-                        "email",
-                        "sms",
-                        "push"
-                    ],
-                    "example": "email"
-                },
-                "content": {
-                    "type": "string",
-                    "example": "Welcome to our platform!"
-                },
-                "meta": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "scheduled_at": {
-                    "type": "string",
-                    "example": "2025-10-27T10:00:00Z"
-                },
-                "title": {
-                    "type": "string",
-                    "example": "Welcome email"
                 }
             }
         },
@@ -547,26 +554,6 @@ const docTemplate = `{
                 "token": {
                     "type": "string",
                     "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                }
-            }
-        },
-        "notifier.UpdateNotificationRequest": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "meta": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "scheduled_at": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
                 }
             }
         },
